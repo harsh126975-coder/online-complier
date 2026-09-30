@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CodeRunner - Online Compiler</title>
+<style>
+  :root {
+    --bg:#ffffff; --panel:#ffffff; --side:#f3f4f6; --text:#1f2937; --muted:#6b7280;
+    --border:#e5e7eb; --accent:#0b5cff; --accent-soft:#e8f0ff; --out:#f8f9fb;
+    --bad:#dc2626; --ok:#059669;
+  }
+  [data-theme="dark"] {
+    --bg:#0f1117; --panel:#151821; --side:#1a1e29; --text:#e5e7eb; --muted:#9ca3af;
+    --border:#272c3a; --accent:#3b82f6; --accent-soft:#1c2a4a; --out:#12151d;
+    --bad:#f87171; --ok:#34d399;
+  }
+  * { box-sizing:border-box; }
+  html, body { height:100%; }
+  body { margin:0; display:flex; flex-direction:column; background:var(--bg); color:var(--text);
+    font-family:system-ui,-apple-system,"Segoe UI",sans-serif; }
+
+  /* ---------- Header ---------- */
+  header { display:flex; align-items:center; gap:18px; padding:8px 18px;
+    border-bottom:1px solid var(--border); background:var(--panel); }
+  .brand { min-width:150px; }
+  .brand b { font-size:22px; letter-spacing:-.5px; } .brand b span { color:var(--accent); }
+  .brand small { display:block; color:var(--muted); font-size:14px; }
+  #adTop { flex:1; max-width:728px; min-height:90px; margin:0 auto; }
+  .hbtns { display:flex; gap:8px; }
+  .btn { border:1px solid var(--border); background:var(--panel); color:var(--text);
+    padding:8px 14px; border-radius:6px; cursor:pointer; font-size:14px; }
+  .btn.primary { border-color:var(--accent); color:var(--accent); }
+
+  /* ---------- Layout ---------- */
+  .app { flex:1; min-height:0; display:flex; }
+  .sidebar { width:70px; background:var(--panel); border-right:1px solid var(--border);
+    padding:10px 0; display:flex; flex-direction:column; align-items:center; gap:10px; overflow-y:auto; }
+  .lang { width:48px; height:48px; flex:none; border:0; border-radius:8px; cursor:pointer;
+    background:var(--side); display:flex; align-items:center; justify-content:center; position:relative; }
+  .lang img { width:26px; height:26px; }
+  .lang:hover { background:var(--accent-soft); }
+  .lang.active { background:var(--accent); }
+  .lang.active img { filter:brightness(0) invert(1); }
+  .lang::after { content:attr(data-label); position:absolute; left:58px; background:#111827; color:#fff;
+    padding:4px 9px; border-radius:5px; font-size:12px; white-space:nowrap; opacity:0; pointer-events:none;
+    transition:opacity .15s; z-index:5; }
+  .lang:hover::after { opacity:1; }
+
+  .work { flex:1; min-width:0; display:grid; grid-template-columns:1.25fr 1fr; }
+  .editor-col { display:flex; flex-direction:column; min-width:0; border-right:1px solid var(--border); }
+  .tabbar { display:flex; align-items:center; justify-content:space-between;
+    border-bottom:1px solid var(--border); background:var(--panel); }
+  .tab { padding:13px 20px; font-size:15px; border-bottom:2px solid var(--accent); }
+  .run { margin:6px 10px; background:var(--accent); color:#fff; border:0; border-radius:6px;
+    padding:9px 22px; font-size:15px; font-weight:600; cursor:pointer; display:flex; gap:8px; align-items:center; }
+  .run:disabled { opacity:.7; cursor:wait; }
+  .spinner { width:13px; height:13px; border:2px solid #fff; border-right-color:transparent;
+    border-radius:50%; animation:spin .7s linear infinite; display:none; }
+  .run.loading .spinner { display:inline-block; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  #editor { flex:1; min-height:300px; }
+
+  .out-col { display:flex; flex-direction:column; min-width:0; background:var(--out); }
+  .out-head { display:flex; justify-content:space-between; align-items:center; padding:0 14px;
+    height:50px; border-bottom:1px solid var(--border); background:var(--panel); font-size:15px; color:var(--muted); }
+  .out-tools { display:flex; gap:6px; align-items:center; }
+  .chip { font-size:12px; padding:3px 10px; border-radius:999px; display:none; }
+  .chip.ok { display:inline-block; background:#d1fae5; color:#047857; }
+  .chip.bad { display:inline-block; background:#fee2e2; color:#b91c1c; }
+  .mini { border:1px solid var(--border); background:var(--panel); color:var(--text);
+    padding:4px 10px; border-radius:6px; font-size:12px; cursor:pointer; }
+  pre { flex:1; margin:0; padding:14px; overflow:auto; white-space:pre-wrap;
+    font:14px ui-monospace,Consolas,monospace; }
+  pre.err { color:var(--bad); } pre.hint { color:var(--muted); font-family:inherit; }
+  #preview { flex:1; border:0; background:#fff; display:none; width:100%; }
+  .stdin-wrap { border-top:1px solid var(--border); background:var(--panel); }
+  .stdin-wrap label { display:block; padding:7px 14px; font-size:12px; color:var(--muted); font-weight:600; }
+  textarea { display:block; width:100%; height:90px; border:0; outline:0; resize:none; padding:4px 14px 10px;
+    background:transparent; color:var(--text); font:14px ui-monospace,Consolas,monospace; }
+  #adBottom { min-height:100px; margin:10px 14px; }
+
+  /* ---------- Ads ---------- */
+  .ad { position:relative; width:100%; height:100%; min-height:inherit; border:1px dashed var(--border);
+    border-radius:8px; background:var(--side); display:flex; align-items:center; justify-content:space-between;
+    gap:14px; padding:12px 16px; text-decoration:none; color:var(--text); }
+  .ad .tag { position:absolute; top:4px; right:8px; font-size:10px; color:var(--muted); letter-spacing:.5px; }
+  .ad h4 { margin:0 0 3px; font-size:17px; } .ad p { margin:0; font-size:13px; color:var(--muted); }
+  .ad .cta { background:var(--accent); color:#fff; padding:8px 16px; border-radius:999px; font-size:14px; white-space:nowrap; }
+
+  @media (max-width:950px) {
+    html, body { height:auto; }
+    #adTop { display:none; }
+    .app { flex-direction:column; }
+    .sidebar { width:100%; flex-direction:row; overflow-x:auto; overflow-y:hidden; padding:8px 10px; }
+    .lang::after { display:none; }
+    .work { grid-template-columns:1fr; }
+    #editor { min-height:320px; }
+    .out-col { min-height:380px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand"><b>Code<span>Runner</span></b><small id="brandLang">Python Online Compiler</small></div>
+  <div id="adTop"></div>
+  <div class="hbtns">
+    <button class="btn" id="themeBtn">🌙 Dark</button>
+    <button class="btn primary">Go PRO</button>
+  </div>
+</header>
+
+<div class="app">
+  <nav class="sidebar" id="sidebar"></nav>
+
+  <div class="work">
+    <section class="editor-col">
+      <div class="tabbar">
+        <div class="tab" id="fileName">main.py</div>
+        <div style="display:flex;align-items:center">
+          <button class="mini" id="resetBtn">↺ Reset</button>
+          <button class="run" id="runBtn"><span class="spinner"></span><span id="runLabel">Run ▶</span></button>
+        </div>
+      </div>
+      <div id="editor"></div>
+    </section>
+
+    <section class="out-col">
+      <div class="out-head">
+        <span>Output</span>
+        <span class="out-tools">
+          <span class="chip" id="chip"></span>
+          <button class="mini" id="copyBtn">Copy code</button>
+          <button class="mini" id="clearBtn">Clear</button>
+        </span>
+      </div>
+      <pre id="output" class="hint">Code likho aur <b>Run</b> dabao (Ctrl + Enter)</pre>
+      <iframe id="preview" sandbox="allow-scripts"></iframe>
+      <div class="stdin-wrap" id="stdinWrap">
+        <label>INPUT (agar program input maangta hai)</label>
+        <textarea id="stdin" placeholder="Har input alag line mein likho..."></textarea>
+      </div>
+      <div id="adBottom"></div>
+    </section>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.0/min/vs/loader.js"></script>
+<script>
+/* =====================================================
+   ADS CONFIG  — yahan apni AdSense details daalo
+   ===================================================== */
+const ADS = {
+  client: "",                 // e.g. "ca-pub-1234567890123456"  (khali = house ads dikhenge)
+  slots: { top: "", bottom: "" }   // AdSense ad-unit slot IDs, e.g. "1234567890"
+};
+// Apne khud ke promo ads (AdSense na ho tab ye dikhte hain, ya direct sponsors ke liye)
+const HOUSE_ADS = [
+  { title: "Learn Python from scratch", text: "Beginner-friendly course with 100+ practice problems.", cta: "Start free", link: "#" },
+  { title: "Go PRO — no ads, more power", text: "Faster runs, saved projects and private sharing.", cta: "Try PRO", link: "#" },
+  { title: "Your brand here", text: "Advertise to thousands of learners every day.", cta: "Contact us", link: "#" },
+];
+
+function mountAd(id, slot) {
+  const box = document.getElementById(id);
+  if (ADS.client && slot) {
+    box.innerHTML = '<ins class="adsbygoogle" style="display:block;width:100%;min-height:inherit" ' +
+      'data-ad-client="' + ADS.client + '" data-ad-slot="' + slot + '" ' +
+      'data-ad-format="auto" data-full-width-responsive="true"></ins>';
+    try { (window.adsbygoogle = window.adsbygoogle || []).push({}); } catch (e) {}
+  } else {
+    let i = Math.floor(Math.random() * HOUSE_ADS.length);
+    const show = () => {
+      const a = HOUSE_ADS[i % HOUSE_ADS.length];
+      box.innerHTML = '<a class="ad" href="' + a.link + '" target="_blank" rel="noopener sponsored">' +
+        '<span class="tag">AD</span><div><h4>' + a.title + '</h4><p>' + a.text + '</p></div>' +
+        '<span class="cta">' + a.cta + '</span></a>';
+      i++;
+    };
+    show(); setInterval(show, 15000);   // har 15 sec mein ad badalta hai
+  }
+}
+if (ADS.client) {
+  const s = document.createElement("script");
+  s.async = true; s.crossOrigin = "anonymous";
+  s.src = "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=" + ADS.client;
+  document.head.appendChild(s);
+}
+mountAd("adTop", ADS.slots.top);
+mountAd("adBottom", ADS.slots.bottom);
+
+/* =====================================================
+   LANGUAGES
+   ===================================================== */
+const ICON = "https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/";
+const L = (label, icon, file, monacoLang, sample) => ({ label, icon: ICON + icon, file, monacoLang, sample });
+const LANGS = {
+  python:     L("Python", "python/python-original.svg", "main.py", "python", 'print("Hello, World!")'),
+  java:       L("Java", "java/java-original.svg", "Main.java", "java", 'public class Main {\n  public static void main(String[] args) {\n    System.out.println("Hello, World!");\n  }\n}'),
+  c:          L("C", "c/c-original.svg", "main.c", "c", '#include <stdio.h>\n\nint main() {\n  printf("Hello, World!\\n");\n  return 0;\n}'),
+  cpp:        L("C++", "cplusplus/cplusplus-original.svg", "main.cpp", "cpp", '#include <iostream>\nusing namespace std;\n\nint main() {\n  cout << "Hello, World!" << endl;\n  return 0;\n}'),
+  javascript: L("JavaScript", "javascript/javascript-original.svg", "main.js", "javascript", 'console.log("Hello, World!");'),
+  typescript: L("TypeScript", "typescript/typescript-original.svg", "main.ts", "typescript", 'const msg: string = "Hello, World!";\nconsole.log(msg);'),
+  csharp:     L("C#", "csharp/csharp-original.svg", "Program.cs", "csharp", 'using System;\n\nclass Program {\n  static void Main() {\n    Console.WriteLine("Hello, World!");\n  }\n}'),
+  go:         L("Go", "go/go-original.svg", "main.go", "go", 'package main\n\nimport "fmt"\n\nfunc main() {\n  fmt.Println("Hello, World!")\n}'),
+  rust:       L("Rust", "rust/rust-original.svg", "main.rs", "rust", 'fn main() {\n    println!("Hello, World!");\n}'),
+  php:        L("PHP", "php/php-original.svg", "main.php", "php", '<?php\necho "Hello, World!\\n";\n?>'),
+  ruby:       L("Ruby", "ruby/ruby-original.svg", "main.rb", "ruby", 'puts "Hello, World!"'),
+  kotlin:     L("Kotlin", "kotlin/kotlin-original.svg", "main.kt", "kotlin", 'fun main() {\n    println("Hello, World!")\n}'),
+  swift:      L("Swift", "swift/swift-original.svg", "main.swift", "swift", 'print("Hello, World!")'),
+  r:          L("R", "r/r-original.svg", "main.R", "r", 'print("Hello, World!")'),
+  lua:        L("Lua", "lua/lua-original.svg", "main.lua", "lua", 'print("Hello, World!")'),
+  perl:       L("Perl", "perl/perl-original.svg", "main.pl", "perl", 'print "Hello, World!\\n";'),
+  bash:       L("Bash", "bash/bash-original.svg", "main.sh", "shell", 'echo "Hello, World!"'),
+  scala:      L("Scala", "scala/scala-original.svg", "Main.scala", "scala", 'object Main extends App {\n  println("Hello, World!")\n}'),
+  sql:        L("SQL", "sqlite/sqlite-original.svg", "query.sql", "sql", "CREATE TABLE users (id INTEGER, name TEXT);\nINSERT INTO users VALUES (1, 'Asha'), (2, 'Ravi');\nSELECT * FROM users;"),
+  html:       L("HTML", "html5/html5-original.svg", "index.html", "html", '<h1 style="color:#0b5cff">Hello, World!</h1>\n<p>Ye HTML ka live preview hai.</p>\n<button onclick="alert(\'Hi!\')">Click me</button>'),
+};
+
+let current = "python", editor, isDark = false;
+const codes = {};
+Object.keys(LANGS).forEach(k => codes[k] = LANGS[k].sample);
+
+const $ = id => document.getElementById(id);
+const outEl = $("output"), chip = $("chip"), preview = $("preview");
+
+/* ---------- Sidebar ---------- */
+function renderSidebar() {
+  $("sidebar").innerHTML = "";
+  Object.entries(LANGS).forEach(([key, l]) => {
+    const b = document.createElement("button");
+    b.className = "lang" + (key === current ? " active" : "");
+    b.dataset.label = l.label;
+    b.innerHTML = '<img src="' + l.icon + '" alt="' + l.label + '">';
+    b.onclick = () => switchLang(key);
+    $("sidebar").appendChild(b);
+  });
+}
+function showHint(msg) {
+  outEl.style.display = "block"; preview.style.display = "none";
+  outEl.className = "hint"; outEl.textContent = msg; chip.className = "chip";
+}
+function switchLang(key) {
+  codes[current] = editor.getValue();
+  current = key;
+  const l = LANGS[key];
+  monaco.editor.setModelLanguage(editor.getModel(), l.monacoLang);
+  editor.setValue(codes[key]);
+  $("fileName").textContent = l.file;
+  $("brandLang").textContent = l.label + " Online Compiler";
+  $("stdinWrap").style.display = key === "html" ? "none" : "block";
+  showHint("Code likho aur Run dabao (Ctrl + Enter)");
+  renderSidebar();
+}
+
+/* ---------- Editor ---------- */
+require.config({ paths: { vs: "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.0/min/vs" } });
+require(["vs/editor/editor.main"], () => {
+  editor = monaco.editor.create($("editor"), {
+    value: codes[current], language: LANGS[current].monacoLang, theme: "vs",
+    automaticLayout: true, fontSize: 15, minimap: { enabled: false },
+    scrollBeyondLastLine: false, padding: { top: 12 },
+  });
+  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, runCode);
+  renderSidebar();
+});
+
+/* ---------- Buttons ---------- */
+$("themeBtn").onclick = () => {
+  isDark = !isDark;
+  document.documentElement.dataset.theme = isDark ? "dark" : "light";
+  $("themeBtn").textContent = isDark ? "☀️ Light" : "🌙 Dark";
+  if (editor) monaco.editor.setTheme(isDark ? "vs-dark" : "vs");
+};
+$("resetBtn").onclick = () => editor.setValue(LANGS[current].sample);
+$("clearBtn").onclick = () => showHint("Output saaf ho gaya.");
+$("copyBtn").onclick = async () => {
+  try { await navigator.clipboard.writeText(editor.getValue()); $("copyBtn").textContent = "Copied ✓"; }
+  catch { $("copyBtn").textContent = "Copy failed"; }
+  setTimeout(() => $("copyBtn").textContent = "Copy code", 1500);
+};
+$("runBtn").onclick = runCode;
+
+/* ---------- Run ---------- */
+async function runCode() {
+  if (current === "html") {
+    outEl.style.display = "none"; preview.style.display = "block";
+    preview.srcdoc = editor.getValue();
+    chip.className = "chip ok"; chip.textContent = "✓ Preview";
+    return;
+  }
+  const btn = $("runBtn");
+  if (btn.disabled) return;
+
+  const needsInput = /input\(|scanf|cin\s*>>|Scanner|readline|gets/.test(editor.getValue());
+  if (needsInput && !$("stdin").value.trim()) {
+    outEl.style.display = "block"; preview.style.display = "none";
+    outEl.className = "err";
+    outEl.textContent = "⚠️ Aapke code ko input chahiye, par Input box khali hai.\nPehle input likho, phir Run dabao.";
+    chip.className = "chip bad"; chip.textContent = "Input missing";
+    return;
+  }
+
+  btn.disabled = true; btn.classList.add("loading"); $("runLabel").textContent = "Running...";
+  outEl.style.display = "block"; preview.style.display = "none";
+  chip.className = "chip"; outEl.className = "hint"; outEl.textContent = "Code chal raha hai...";
+
+  try {
+    const res = await fetch("/api/run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ language: current, code: editor.getValue(), stdin: $("stdin").value }),
+    });
+    const d = await res.json();
+    if (d.error) {
+      outEl.className = "err"; outEl.textContent = d.error;
+      chip.className = "chip bad"; chip.textContent = "Error";
+    } else {
+      const errText = d.compile_output || d.stderr;
+      outEl.className = errText ? "err" : "";
+      outEl.textContent = (d.stdout || "") + (errText ? (d.stdout ? "\n" : "") + errText : "") || "(Koi output nahi aaya)";
+      const ok = d.status === "Accepted";
+      chip.className = "chip " + (ok ? "ok" : "bad");
+      chip.textContent = (ok ? "✓ Success" : d.status) + (d.time ? " • " + d.time + "s" : "");
+    }
+  } catch {
+    outEl.className = "err"; outEl.textContent = "Server se connect nahi ho paya. Kya npm start chal raha hai?";
+    chip.className = "chip bad"; chip.textContent = "Offline";
+  }
+  btn.disabled = false; btn.classList.remove("loading"); $("runLabel").textContent = "Run ▶";
+}
+</script>
+</body>
+</html>
